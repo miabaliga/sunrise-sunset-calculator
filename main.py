@@ -1,9 +1,8 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
-from datetime import date
+from datetime import date, datetime
 from typing import List
-import statistics
 from astral import LocationInfo
 from astral.sun import sun
 import pytz
@@ -42,15 +41,18 @@ def calculate_monthly_medians(year: int, lat: float, lon: float, tz_str: str) ->
         for day in range(1, 32):
             try:
                 day_date = date(year, month_num, day)
-                s = sun(location.observer, date=day_date, tz=timezone)
-                sunrise_times.append(s["sunrise"])
-                sunset_times.append(s["sunset"])
-            except ValueError:
+                s = sun(location.observer, date=day_date)
+                if s.get("sunrise") and s.get("sunset"):
+                    sunrise_naive = s["sunrise"]
+                    sunset_naive = s["sunset"]
+                    sunrise_times.append(sunrise_naive)
+                    sunset_times.append(sunset_naive)
+            except (ValueError, KeyError, AttributeError):
                 break
 
         if sunrise_times and sunset_times:
-            median_sunrise = statistics.median(sunrise_times)
-            median_sunset = statistics.median(sunset_times)
+            median_sunrise = datetime.fromtimestamp(sum(t.timestamp() for t in sunrise_times) / len(sunrise_times))
+            median_sunset = datetime.fromtimestamp(sum(t.timestamp() for t in sunset_times) / len(sunset_times))
 
             results.append(MonthlyMedian(
                 month=month_name,
